@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Outputs:
+  InputTopicARN:
+    Description: 'ARN that Dome9 sends events to'
+    Value:
+      Ref: InputTopic
+  QueueURL: 
+    Description: 'URL of newly created SQS Queue'
+    Value: 
+      Ref: LogsQueue
+  QueueARN: 
+    Description: 'ARN of newly created SQS Queue'
+    Value: 
+      Fn::GetAtt: 
+        - LogsQueue
+        - Arn        
+  LogIngestionLambdaFunction: 
+    Description: 'Name of newly created Lambda Function'
+    Value: 
+      Ref: LogIngestionFunction
+Parameters:
+  S3BucketForLogging:
+    Default: '<S3-Bucket-Name-Here>'
+    Description: 'REQUIRED - Target S3 Bucket for Logs (e.g. MyS3BucketName).'
+    Type: String
+  LogFolder:
+    Default: 'dome9-logs/dome9AuditTrail/'
+    Description: 'REQUIRED - Log Folder. Context: s3://S3BucketName/<Log-Folder>'
+    Type: String
+  LogFilePrefix:
+    Default: 'dome9AuditTrail'
+    Description: 'REQUIRED - Log File Prefix. Context: <Log-File-Prefix>_YYYYMMDDTHHMMZ_<Random-ID>.log'
+    Type: String
+  IsGzipEnabled:
+    Default: 'true'
+    Description: 'REQUIRED - Enable GZIP compression and logfile extension.'
+    Type: String
+Resources:
+  InputTopic:
+    Type: AWS::SNS::Topic
+  InputTopicPolicy:
+    Properties:
+      PolicyDocument:
+        Id: D9DeliveryPolicy
+        Statement:
+        - Action: sns:Publish
+          Effect: Allow
+          Principal:
+            AWS: arn:aws:iam::634729597623:root
+          Resource:
+            Ref: InputTopic
+          Sid: D9DeliveryPolicy
+        Version: '2012-10-17'
+      Topics:
+      - Ref: InputTopic
+    Type: AWS::SNS::TopicPolicy
+  LogsQueue:
+    DependsOn: InputTopic
+    Properties:
+      MessageRetentionPeriod: 1209600
+      VisibilityTimeout: 30
+    Type: AWS::SQS::Queue
+  LogsQueuePolicy:
+    DependsOn:
+      - LogsQueue
+      - InputTopic
+    Properties: 
+      PolicyDocument:
+        Id: "SQSPolicy"
+        Statement:
+        - Action:
+          - sqs:*
+          Effect: Allow
+          Resource: 
+            Fn::GetAtt: 
+            - LogsQueue
+            - Arn
+          Condition:
+            ArnEquals: 
+              'aws:SourceArn': 
+                Ref: InputTopic
+          Principal: "*"
+        Version: '2012-10-17'
+      Queues:
+        - Ref: LogsQueue
+    Type: AWS::SQS::QueuePolicy
+  SubscribeSQStoSNS:
+    DependsOn: 
+      - LogsQueue
+      - InputTopic
+    Properties:
+      Endpoint: 
+        Fn::GetAtt: 
+        - LogsQueue
+        - Arn
+      Protocol: sqs
+      TopicArn: 
+        Ref: InputTopic
+    Type: AWS::SNS::Subscription
+  LogIngestionFunction:
+    DependsOn: 
+      - LogsQueue
+    Properties:
+      CodeUri: 
+        Bucket: 
+          Fn::Join:
+          - ''
+          - - 'dome9-tools-'
+            - !Ref 'AWS::Region'
+          # If deploying CFT manually, replace this join with a string (e.g. "Bucket: my-custom-bucket-name"
+        Key: 'dome9s3logger/dome9s3logger.zip'
+        # Key is the name of the zip file which contains s3_logger.js
+      Description: 'SNS to SQS to S3 logging for Dome9 events'
+      Environment:
+        Variables:
+          s3BucketForLogging:
+            Ref: S3BucketForLogging
+          queueUrl: 
+            Ref: LogsQueue
+          logFolder:
+            Ref: LogFolder
+          logFilePrefix:
+            Ref: LogFilePrefix
+          isGzipEnabled:
+            Ref: IsGzipEnabled
+      Events:
+        Timer:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(1 minute)'
+      FunctionName: !Ref AWS::StackName
+      Handler: s3_logger.handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:PutObject
+          - s3:PutObjectTagging
+          Effect: Allow
+          Resource:
+            Fn::Join: 
+            - ''
+            - - 'arn:aws:s3:::'
+              - !Ref S3BucketForLogging 
+              - '/*'
+        - Action:
+          - sqs:DeleteMessage
+          - sqs:ReceiveMessage
+          - sqs:GetQueueAttributes
+          Effect: Allow
+          Resource: 
+            Fn::GetAtt: 
+            - LogsQueue
+            - Arn
+        Version: '2012-10-17'
+      Runtime: nodejs12.x
+      Timeout: 120
+    Type: AWS::Serverless::Function
+  LambdaSelfInvokePolicy:
+    Properties:
+      PolicyName: Dome9S3Logger-Self-Invoke
+      PolicyDocument:
+        Statement:
+          - Action: 
+            - lambda:InvokeFunction
+            Effect: Allow
+            Resource: 
+              Fn::GetAtt: 
+              - LogIngestionFunction
+              - Arn
+        Version: '2012-10-17'
+      Roles:
+        - !Ref LogIngestionFunctionRole
+    Type: AWS::IAM::Policy
+Transform: AWS::Serverless-2016-10-31

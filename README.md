@@ -27,9 +27,6 @@ The stack has five parameters
 
 **LogFilePrefix** - a prefix for the log files, to identify them
 
-**isGzipEnabled** - enables gzip compression and file extension
-
-
 [<img src="docs/pictures/cloudformation-launch-stack.png">](https://console.aws.amazon.com/cloudformation/home?#/stacks/new?stackName=dome9s3Logger&templateURL=https://dome9-tools-us-east-1.s3.amazonaws.com/dome9s3logger/s3logger_cftemplate.yaml)
 
 ## Post-Install - Configure Dome9 to send events to the new SNS Topic

@@ -31,10 +31,6 @@ Parameters:
     Default: 'dome9AuditTrail'
     Description: 'REQUIRED - Log File Prefix. Context: <Log-File-Prefix>_YYYYMMDDTHHMMZ_<Random-ID>.log'
     Type: String
-  IsGzipEnabled:
-    Default: 'true'
-    Description: 'REQUIRED - Enable GZIP compression and logfile extension.'
-    Type: String
 Resources:
   InputTopic:
     Type: AWS::SNS::Topic
@@ -121,8 +117,6 @@ Resources:
             Ref: LogFolder
           logFilePrefix:
             Ref: LogFilePrefix
-          isGzipEnabled:
-            Ref: IsGzipEnabled
       Events:
         Timer:
           Type: Schedule

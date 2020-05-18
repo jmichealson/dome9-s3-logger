@@ -1,6 +1,6 @@
 # S3 Logger
 
-This tool write logs to an S3 bucket. It will create an SNS Topic and SQS Queue, poll messages from SQS, and then write the logs elegantly to the S3 every minute. The deployment method leverages CloudFormation and is customizable using the available parameters. It is recommended to deploy two stacks, to segregate Dome9 Audit Trail and Compliance Results into separate folders.
+This tool write logs to an S3 bucket. It will create an SNS Topic and SQS Queue, poll messages from SQS, and then write the logs elegantly to the S3 every minute. The deployment method leverages CloudFormation and is customizable using the available parameters. It is recommended to deploy two stacks, to segregate Dome9 Audit Trail and Compliance Results into separate folders
 
 ## Getting Started
 
